@@ -15,6 +15,8 @@ find_package(Qt6 COMPONENTS
         Gui
         Widgets
         Network
+        Multimedia
+        MultimediaWidgets
         REQUIRED)
 
 add_executable(chat ${SRC} ${HEADERS})
@@ -23,5 +25,9 @@ target_link_libraries(chat
         Qt::Gui
         Qt::Widgets
         Qt::Network
+		Qt::Multimedia
+		Qt::MultimediaWidgets
 )
+
+
 

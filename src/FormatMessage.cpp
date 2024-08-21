@@ -1,7 +1,3 @@
-//
-// Created by yichen on 2024/8/15.
-//
-
 #include "FormatMessage.h"
 void FormatMessage::add(const QString &data,long long dataIndex) {
 	//找到最后一个]

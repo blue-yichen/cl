@@ -9,19 +9,22 @@
 #include "MainWindow.h"
 #include "ChatWindow.h"
 #include "ChatString.h"
+#include "ReceiverThread.h"
 #include "ControlMessage.h"
-#include "RegisterDialog.h"
+#include "ALineInputDialog.h"
 #include "FormatMessage.h"
+#include "NetworkClient.h"
 
 class LoginWindow : public MainWindow {
   Q_OBJECT
 public:
   LoginWindow(QWidget *parent = nullptr);
-  ~LoginWindow();
+  ~LoginWindow() override;
 protected:
   void keyPressEvent(QKeyEvent *event) override;
 signals:
 	void loginSuccessful();	//登录成功信号
+	void loginFail();
 	void registerSuccessful(); //注册成功信号
 	void registerFail();
 private slots:

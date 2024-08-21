@@ -1,5 +1,0 @@
-/home/yichen/Works/cxx/qt/chat/cmake-build-debug/CMakeFiles/chat.dir
-/home/yichen/Works/cxx/qt/chat/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/yichen/Works/cxx/qt/chat/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/yichen/Works/cxx/qt/chat/cmake-build-debug/CMakeFiles/chat_autogen_timestamp_deps.dir
-/home/yichen/Works/cxx/qt/chat/cmake-build-debug/CMakeFiles/chat_autogen.dir

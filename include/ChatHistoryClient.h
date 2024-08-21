@@ -1,7 +1,3 @@
-//
-// Created by yichen on 2024/8/12.
-//
-
 #ifndef CHAT_SRC_CHATHISTORYCLIENT_H_
 #define CHAT_SRC_CHATHISTORYCLIENT_H_
 #include "ChatHistory.h"

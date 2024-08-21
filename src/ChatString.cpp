@@ -57,3 +57,29 @@ QString ChatString::NumberToStr(int number) {
   std::reverse(result.begin(),result.end());
   return result;
 }
+QString ChatString::getEndNBucket(int n) {
+	//第n个字符串的内容 = skip(count - n)个括号后的内容
+	int sum = getBucketSum();
+	if (!(n <= sum && n >= 1)) {
+	  return {};
+	}
+  	skipNBucket(sum - n);
+
+	return getDataInBucket();
+}
+int ChatString::getBucketSum() const {
+  int count = 0;
+  ChatString str(m_data);
+  while (!str.getDataInBucket().isEmpty()) {
+	count++;
+  }
+  return count;
+}
+
+QString ChatString::getALineFormatStr(const QString &arg1, const QString &arg2) {
+    return
+            arg1 +
+            ControlMessage::Mes[ControlMessage::Delimiter] +
+            arg2 +
+            ControlMessage::Mes[ControlMessage::EndFlag];
+}

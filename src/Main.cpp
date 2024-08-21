@@ -19,11 +19,15 @@ int main(int argc, char *argv[]) {
 		qDebug() << "qss open error";
 		exit(EXIT_FAILURE);
 	}
+  	user = new Account();
+  	loginWindow = new LoginWindow();
+  	receiverThread = new ReceiverThread();
+	receiverThread->start();
+  	chatWindow = new ChatWindow();
+  	socket = new NetworkClient("127.0.0.1", 12345);
 	histories = new QHash<QString,ChatHistoryClient>();
-	socket = new NetWorkClient("127.0.0.1",12345);
-	user = new User();
-	LoginWindow w;
-	w.show();
+
+	loginWindow->show();
 
 	return QApplication::exec();
 }

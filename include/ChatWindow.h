@@ -1,41 +1,71 @@
 #ifndef CHAT_SRC_WIDGET_H_
 #define CHAT_SRC_WIDGET_H_
 #include <QResizeEvent>
-#include <QTextEdit>
+#include <QFileDialog>
+#include <QDialog>
 #include <QTextBrowser>
 #include <QVBoxLayout>
 #include <QPushButton>
 #include <QToolButton>
 #include <QHBoxLayout>
 #include <QVector>
-#include "ToolBar.h"
+#include <QToolBar>
+#include <QUrl>
+#include <QScrollBar>
+#include "TextEdit.h"
 #include "MainWindow.h"
+#include "ALineInputDialog.h"
+#include "Account.h"
+
+const int NoChat = -1;
+const int ToolButtonNumber = 10;
+
+enum SenderType {
+  MySelf,Another
+};
 
 class ChatWindow : public MainWindow {
   Q_OBJECT
 public:
   ChatWindow(QWidget *parent = nullptr);
   ~ChatWindow();
-private slots:
+  void showFriendList();
+  void readFriendList();
+  void showNewFriendOnList(const QString &aid);
+signals:
+  void messageSentByButton(SenderType type,const QString &senderAid,const QString &messageContent);
+  void messageSent(const QString &messageContent);
+public slots:
   void onSendButtonClicked();
   void onSelectButtonClicked();
   void onAdditionButtonClicked();
   void onFriendButtonClicked(const QString &id);
-  void showMessageOnBrowser();
-  void showFileOnBrowser();
+  //接收到消息就显示在textBrowser上
+  void addMessageOnBrowser(SenderType type,const QString &senderAid, const QString &messageContent);
+  void addFileOnBrowser(const QString &fileType);
+  void playVideoOnBrowser(const QUrl &url);
+  void friendButtonClicked(const QToolButton *button);
+  void friendButtonClicked(const QAction *button);
 private:
   	void updateWidgetSize() override;
-	void readFriendList();
-	void updateFriendList();
+	int findWhichButton(const QToolButton *button) const ;
+	int findWhichButton(const QAction *button) const ;
+	void updateBrowser();
+	bool isToolButton(int chatId) const;
+	int m_currentChatFriend;
 	QVector<QToolButton*> m_friendButtonList;
 	QVector<QAction*> m_friendActionList;
+	//QToolButton在前，QAction在后
+	QVector<QString> m_perFriendContents;
+	//aid和按钮编号的映射
+	QHash<QString,int> m_friendChatId;
+	QHash<int,QString> m_friendChatAid;
   	QTextBrowser *m_messageBrowser;
 	QPushButton *m_sendButton;
 	QPushButton *m_selectButton;
-	QTextEdit *m_textEdit;
+	TextEdit *m_textEdit;
 	QPushButton *m_additionButton;
-	ToolBar *m_contactPerson;
-
+	QToolBar *m_contactPerson;
 	SizePercent m_messageBrowserSize;
 	SizePercent m_sendButtonSize;
 	SizePercent m_selectButtonSize;

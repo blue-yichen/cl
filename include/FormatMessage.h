@@ -1,7 +1,3 @@
-//
-// Created by yichen on 2024/8/15.
-//
-
 #ifndef CHATSERVER_SRC_FORMATMESSAGE_H_
 #define CHATSERVER_SRC_FORMATMESSAGE_H_
 #include <QString>
