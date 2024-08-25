@@ -1,7 +1,3 @@
-//
-// Created by yichen on 2024/8/14.
-//
-
 #ifndef CHATSERVER_SRC_CHATSTRING_H_
 #define CHATSERVER_SRC_CHATSTRING_H_
 #include <QString>
@@ -19,6 +15,7 @@ public:
   }
   ~ChatString() {}
   QString getDataInBucket();
+  QString getDataAndBucket();
   QString next();
   void skipNBucket(int n);
   //从后面数的第n个括号内的内容

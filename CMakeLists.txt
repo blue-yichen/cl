@@ -19,7 +19,13 @@ find_package(Qt6 COMPONENTS
         MultimediaWidgets
         REQUIRED)
 
-add_executable(chat ${SRC} ${HEADERS})
+add_executable(chat ${SRC} ${HEADERS}
+		include/Friend.h
+		src/FloatingWindow.cpp
+		include/FloatingWindow.h
+		src/ScrollApplyWindow.cpp
+		include/ScrollApplyWindow.h
+)
 target_link_libraries(chat
         Qt::Core
         Qt::Gui

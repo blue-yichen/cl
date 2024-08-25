@@ -15,22 +15,29 @@
 #include "FormatMessage.h"
 #include "NetworkClient.h"
 
+const int TimeLimits = 5;
+
 class LoginWindow : public MainWindow {
   Q_OBJECT
+  typedef unsigned long long u64;
 public:
   LoginWindow(QWidget *parent = nullptr);
   ~LoginWindow() override;
 protected:
   void keyPressEvent(QKeyEvent *event) override;
 signals:
-	void loginSuccessful();	//登录成功信号
-	void loginFail();
+	void loginSuccessful(ChatString &message);	//登录成功信号
+	void loginFail(ChatString &message);
 	void registerSuccessful(); //注册成功信号
 	void registerFail();
+    void loginFinished();
 private slots:
   	void login(); //响应pushbutton的clicked信号
 	void registers();
+    void onLoginSuccessful(ChatString &message);
+    void onLoginFail(ChatString &message);
 private:
+  static bool isEnoughTimeLimits(u64 prevTime,u64 curTime);
   void updateWidgetSize() override;
   void labelFontStyle(QLabel* &label, int fontSize, QFlag alignment);
   bool checkPasswordAndAid();

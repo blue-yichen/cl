@@ -16,8 +16,8 @@ enum ControlMessageEnum {
   AgreeFriend,HostAddFriendSuccess,PassiveAddFriendSuccess,
   RepeatAdd,AidNoExist,BeAdding,FriendApply,
   FriendFunc,RefuseFriend,BeFriendFail,ToAddFriendBeRefuse,
-  TheOtherAddsFriendToo,TheOtherAppliedToBeFriend,RepeatApply
-
+  TheOtherAddsFriendToo,TheOtherAppliedToBeFriend,RepeatApply,
+  FriendIsSelf,RepeatLogin,AccountOrPasswordError,
 };
 const  QString Mes[] = {
 	"generate aid","forward",
@@ -38,7 +38,7 @@ const  QString Mes[] = {
     "friend","refuse to be friend",
     "make friend fail","to add friend be refused",
     "the other adds friend,too","the other applied to be friend",
-    "repeat apply"
+    "repeat apply","friend is yourself","repeat login","account or password error",
 
 
 };

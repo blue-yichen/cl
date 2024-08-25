@@ -1,10 +1,13 @@
 #include "ChatWindow.h"
+#include "ScrollApplyWindow.h"
 #include <QSize>
+#include <QMenu>
 #include <QDebug>
 #include "Data.h"
 
 ChatWindow::ChatWindow(QWidget *parent)
-	: MainWindow(parent), m_currentChatFriend(NoChat) {
+	: MainWindow(parent), m_currentChatFriend(NoChat),
+      m_isQuit(false) {
 	//初始化m_height和m_width
 	setMaximumSize(800,600);
 	setMinimumSize(640,480);
@@ -48,6 +51,27 @@ ChatWindow::ChatWindow(QWidget *parent)
 	m_additionButton->setText("添加好友/聊天室");
 	contactLayout->addWidget(m_contactPerson);
 	contactLayout->addWidget(m_additionButton);
+    //好友浮窗
+    m_waitAgreeButton = new FloatingWindow("主");
+    m_needAgreeButton = new FloatingWindow("被");
+    m_waitAgreeList = new ScrollApplyWindow(LabelLine,m_waitAgreeButton);
+    m_needAgreeList = new ScrollApplyWindow(ButtonLine,m_needAgreeButton);
+    //消息提示音
+    m_messageTone = new QSoundEffect(this);
+    m_messageTone->setSource(QUrl::fromLocalFile("."
+                                                 ""
+                                                 "./source/sounds/MessageTone"
+                                                 ".wav"));
+    //播放一次
+    qDebug() << QUrl::fromLocalFile("/home/yichen/Works/cxx/qt/chat/source/sounds/MessageTone.wav");
+
+    m_messageTone->setLoopCount(1);
+    m_messageTone->setVolume(0.5f);
+//    m_player = new QMediaPlayer(this);
+//    QAudioOutput *audioOutput = new QAudioOutput(this);
+//    m_player->setAudioOutput(audioOutput);
+//    m_player->setSource(QUrl::fromLocalFile("/home/yichen/Works/cxx/qt/chat/source/sounds/MessageTone.wav"));
+//    audioOutput->setVolume(0.5f);
 	//更新控件大小
 	updateWidgetSize();
 	mainLayout->addLayout(contactLayout);
@@ -58,6 +82,20 @@ ChatWindow::ChatWindow(QWidget *parent)
 	connect(m_additionButton,&QPushButton::clicked,this,&ChatWindow::onAdditionButtonClicked);
 	connect(this,&ChatWindow::messageSentByButton,this,&ChatWindow::addMessageOnBrowser);
 	connect(m_textEdit,&TextEdit::returnPressed,m_sendButton,&QPushButton::click);
+    connect(user,&Account::friendAdded,this,&ChatWindow::onFriendAdded);
+    connect(m_waitAgreeButton,&FloatingWindow::clicked,[this]() {
+       m_waitAgreeList->show();
+       m_waitAgreeButton->hide();
+    });
+    connect(m_needAgreeButton,&FloatingWindow::clicked,[this]() {
+        m_needAgreeList->show();
+        m_needAgreeButton->hide();
+    });
+    connect(loginWindow,&LoginWindow::loginSuccessful,[this]() {
+        connect(m_needAgreeList,&ScrollApplyWindow::agreeButtonClicked,socket,&NetworkClient::agreedFriendApply);
+        connect(m_needAgreeList,&ScrollApplyWindow::refuseButtonClicked,socket,&NetworkClient::refusedFriendApply);
+    });
+    m_textEdit->installEventFilter(this);
 }
 
 ChatWindow::~ChatWindow() = default;
@@ -168,16 +206,19 @@ void ChatWindow::onAdditionButtonClicked() {
 	ALineInputDialog dialog("输入好友账号","账号");
 	QString aid;
 	int count = 0;
+    int ret;
 	do {
 	  if (count != 0) {
 		QMessageBox::information(this,"提醒","aid至少" + ChatString::NumberToStr
 		(AidMinLength) + "位,且aid必须为数字");
 	  }
-	  dialog.exec();
+	  ret = dialog.exec();
+      if (ret == QDialog::Rejected) {
+          return;
+      }
 	  aid = dialog.getInput();
 	  count++;
 	} while(!Account::isQualifiedForAid(aid));
-	QMessageBox::information(this,"提醒","已向aid为" + aid + "的对象发送添加申请");
     QString forwardMessage =
             ChatString::getALineFormatStr
             (ControlMessage::Mes[ControlMessage::FriendFunc],
@@ -197,31 +238,29 @@ void ChatWindow::onAdditionButtonClicked() {
     //主动添加好友
     emit messageSent(formatForwardMessage.toQString());
 }
-void ChatWindow::onFriendButtonClicked(const QString &id) {
 
-}
-void ChatWindow::showNewFriendOnList(const QString &aid) {
-  	//已经添加了新的好友在user中
-	//user原本20个好友
-	//这里就是21
-	//而这里给出的是ChatId，一个索引
-	QString showText = user->getNameFromFriend(aid) + "("
-		+ aid + ")";
-	if (isToolButton((int)user->getFriendsNumber() - 2)) {
-		QToolButton *button = new QToolButton();
-		button->setText(showText);
-		button->resize(m_contactPerson->width(),
-					   m_contactPerson->height() /
-					   ToolButtonNumber);
-		m_friendButtonList.emplace_back(button);
-		m_contactPerson->addWidget(button);
-	} else {
-	  	QAction *button = new QAction();
-	  	button->setText(showText);
-		m_friendActionList.emplace_back(button);
-		m_contactPerson->addAction(button);
-	}
-}
+//void ChatWindow::showNewFriendOnList(const QString &aid) {
+//  	//已经添加了新的好友在user中
+//	//user原本20个好友
+//	//这里就是21
+//	//而这里给出的是ChatId，一个索引
+//	QString showText = user->getNameFromFriend(aid) + "("
+//		+ aid + ")";
+//	if (isToolButton((int)user->getFriendsNumber() - 2)) {
+//		QToolButton *button = new QToolButton();
+//		button->setText(showText);
+//		button->resize(m_contactPerson->width(),
+//					   m_contactPerson->height() /
+//					   ToolButtonNumber);
+//		m_friendButtonList.emplace_back(button);
+//		m_contactPerson->addWidget(button);
+//	} else {
+//	  	QAction *button = new QAction();
+//	  	button->setText(showText);
+//		m_friendActionList.emplace_back(button);
+//		m_contactPerson->addAction(button);
+//	}
+//}
 void ChatWindow::playVideoOnBrowser(const QUrl &url) {
 
 }
@@ -259,9 +298,10 @@ void ChatWindow::addMessageOnBrowser(SenderType type,const QString &senderAid, c
 	  showName = user->getNameFromFriend(senderAid);
 	  showName += "(" + senderAid + ")";
 	} else {
-	  showName = "你自己";
+	  showName = "我";
 	}
   	int chatId;
+    //其他人的消息显示在browser上
 	if (type == Another) {
 	  //判断好友是在哪类按钮上，QAction或QToolButton
 	  chatId = m_friendChatId[senderAid];
@@ -272,18 +312,23 @@ void ChatWindow::addMessageOnBrowser(SenderType type,const QString &senderAid, c
 		QToolButton *friendButton = m_friendButtonList[chatId];
 	  }
 	} else {
+      //自己发送的消息
 	  chatId = m_currentChatFriend;
 	}
+    //响起消息提示音
+    //如果不是当前聊天窗口显示的好友发送的消息,就触发消息提示音
+    if (chatId != m_currentChatFriend) {
+        m_messageTone->play();
+    }
+    qDebug() << "chatId:" << chatId;
   	message = m_perFriendContents[chatId];
 	message.append(QString("<style>"
 						   "p { line-height: 1; }"
 						   "</style>"
 						   "<p><b>%1: </b> %2</p>").arg(showName,
 														messageContent));
-	qDebug() << "currentChatFriend:" + ChatString::NumberToStr
-	(m_currentChatFriend);
-	qDebug() << "Message Chat Id:" + ChatString::NumberToStr(chatId);
 	m_perFriendContents[chatId] = message;
+    //当前聊天窗口的消息
 	if (m_currentChatFriend == chatId) {
 	  m_messageBrowser->setHtml(message);
 	  //自动向下滚动
@@ -305,8 +350,10 @@ void ChatWindow::readFriendList() {
  QList<QString> aids = user->getAllAidOfFriend();
  QList<QString> usernames = user->getAllUsernameOfFriend();
  QString showText;
+ QString chatTitle;
  for (int i = 0;i < aids.size();++i) {
    showText = usernames[i] + "(" + aids[i] + ")";
+   chatTitle = "与" + showText + "的聊天";
    //建立双向映射
    m_friendChatId[aids[i]] = i;
    m_friendChatAid[i] = aids[i];
@@ -314,30 +361,192 @@ void ChatWindow::readFriendList() {
 	 //QToolButton
 	 m_friendButtonList.emplace_back(new QToolButton(this));
 	 m_friendButtonList[i]->setText(showText);
-	 m_friendButtonList[i]->resize(m_contactPerson->width(),m_contactPerson->height() / ToolButtonNumber);
+//	 m_friendButtonList[i]->resize(m_contactPerson->width(),
+//                              m_contactPerson->height() / ToolButtonNumber);
+     m_friendButtonList[i]->setFixedSize(m_contactPerson->width() - 10,
+                            m_contactPerson->height() /
+                            ToolButtonNumber);
+     qDebug() << "friend height:" + ChatString::NumberToStr
+     (m_contactPerson->height() / ToolButtonNumber);
    } else {
 	 //QAction
 	 m_friendActionList.emplace_back(new QAction(this));
 	 m_friendActionList[i - ToolButtonNumber]->setText(showText);
    }
-   m_perFriendContents.push_back("");
+   m_perFriendContents.emplace_back("");
  }
   for (auto &it : m_friendButtonList) {
 	connect(it,&QToolButton::clicked,[=]() {
 	  friendButtonClicked(it);
 	  updateBrowser();
-	  chatWindow->setWindowTitle("与" + it->text() + "的聊天");
-
+	  chatWindow->setWindowTitle(chatTitle);
 	});
   }
   for (auto &it : m_friendActionList) {
 	connect(it,&QAction::triggered,[=]() {
 	  friendButtonClicked(it);
 	  updateBrowser();
-	  chatWindow->setWindowTitle("与" + it->text() + "的聊天");
+	  chatWindow->setWindowTitle(chatTitle);
 	});
   }
 }
 
+//添加好友
+void ChatWindow::onFriendAdded(const Friend &aFriend) {
+    //在好友列表中扩展
+    //判断是action还是ToolButton
+    QString showName = aFriend.m_username +
+            "(" + aFriend.m_aid + ")";
+    QString chatTitle = "与" + showName + "的聊天";
+    if (m_friendButtonList.size() < ToolButtonNumber) {
+        //ToolButton
+        QToolButton *button = new QToolButton(this);
+        button->setText(showName);
+        button->setFixedSize(m_contactPerson->width() - 8,
+                             m_contactPerson->height() /
+                                     (ToolButtonNumber + 3) + 5);
+//        button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+        //连接信号槽
+        connect(button,&QToolButton::clicked,[=]() {
+            friendButtonClicked(button);
+            updateBrowser();
+            chatWindow->setWindowTitle(chatTitle);
+        });
+        m_friendButtonList.emplace_back(button);
+        m_contactPerson->addWidget(button);
+
+        qDebug() << "friend height:" + ChatString::NumberToStr
+                (m_contactPerson->height() / ToolButtonNumber);
+    } else {
+        //action
+        QAction *button = new QAction();
+        button->setText(showName);
+        //连接信号槽
+        connect(button,&QAction::triggered,[=]() {
+            friendButtonClicked(button);
+            updateBrowser();
+            chatWindow->setWindowTitle(chatTitle);
+        });
+        m_friendActionList.emplace_back(button);
+        m_contactPerson->addAction(button);
+    }
+    //得到对应的chatId
+    //和对应的信息框内容
+    int chatId = m_friendChatAid.size();
+    m_friendChatAid[chatId] = aFriend.m_aid;
+    m_friendChatId[aFriend.m_aid] = chatId;
+    m_perFriendContents.emplace_back("");
+    qDebug() << "add chatId:" + ChatString::NumberToStr(chatId);
+}
+
+
+void ChatWindow::onWaitingAgreeAdded(const Friend &aFriend) {
+    qDebug() << QString("in ") + __FUNCTION__;
+    //有一个申请就显示按钮
+    waitMutex.lock();
+    if (waitToAgreeTable.empty()) {
+        m_waitAgreeButton->show();
+    }
+    waitToAgreeTable.insert(aFriend);
+    m_waitAgreeList->addRaw(aFriend.m_username + "(" +
+                            aFriend.m_aid + ")");
+    waitMutex.unlock();
+
+}
+
+void ChatWindow::onNeedingAgreeAdded(const Friend &aFriend) {
+    qDebug() << QString("in ") + __FUNCTION__;
+    needMutex.lock();
+    if (needToAgreeTable.empty()) {
+        m_needAgreeButton->show();
+    }
+    needToAgreeTable.insert(aFriend);
+    m_needAgreeList->addRaw(aFriend.m_username + "(" +
+                            aFriend.m_aid + ")");
+    needMutex.unlock();
+}
+
+void ChatWindow::onWaitingAgreeRemoved(const Friend &aFriend) {
+    qDebug() << QString("in ") + __FUNCTION__;
+    waitMutex.lock();
+    waitToAgreeTable.remove(aFriend);
+    m_waitAgreeList->removeRaw(aFriend.m_username + "(" +
+                               aFriend.m_aid + ")");
+    if (waitToAgreeTable.empty()) {
+        m_waitAgreeButton->hide();
+        m_waitAgreeList->hide();
+    }
+    waitMutex.unlock();
+}
+
+void ChatWindow::onNeedingAgreeRemoved(const Friend &aFriend) {
+    qDebug() << QString("in ") + __FUNCTION__;
+
+    needMutex.lock();
+    needToAgreeTable.remove(aFriend);
+    m_needAgreeList->removeRaw(aFriend.m_username + "(" +
+                               aFriend.m_aid + ")");
+    if (needToAgreeTable.empty()) {
+        m_needAgreeButton->hide();
+        m_needAgreeList->hide();
+    }
+    needMutex.unlock();
+}
+
+void ChatWindow::onShowMessage(const QString &title, const QString &message) {
+    QMessageBox::information(chatWindow,title,message);
+}
+
+void ChatWindow::closeEvent(QCloseEvent *event) {
+    if (!m_isQuit) {
+        this->hide();
+        event->ignore();
+    } else {
+        MainWindow::closeEvent(event);
+    }
+    m_waitAgreeList->hide();
+    m_waitAgreeButton->hide();
+    m_needAgreeButton->hide();
+    m_needAgreeList->hide();
+}
+
+bool ChatWindow::eventFilter(QObject *obj, QEvent *event) {
+    if (obj == m_textEdit && event->type() == QEvent::KeyPress) {
+        QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_BracketLeft ||
+            keyEvent->key() == Qt::Key_BracketRight||
+            keyEvent->key() == Qt::Key_Colon ||
+            keyEvent->key() == Qt::Key_BraceLeft ||
+            keyEvent->key() == Qt::Key_BraceRight ) {
+            return true;
+        }
+    }
+    return MainWindow::eventFilter(obj,event);
+}
+
+void ChatWindow::quit() {
+    m_isQuit = true;
+}
+
+void ChatWindow::showWaitButton() {
+    if (m_waitAgreeButton) {
+        m_waitAgreeButton->showAtPrevPos();
+    }
+}
+
+void ChatWindow::showNeedButton() {
+    if (m_needAgreeButton) {
+        m_needAgreeButton->showAtPrevPos();
+    }
+}
+
+void ChatWindow::showAtPrevPos() {
+    this->show();
+    this->move(m_savePos);
+}
+
+void ChatWindow::saveCurPos() {
+    m_savePos = this->pos();
+}
 
 

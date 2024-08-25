@@ -2,12 +2,15 @@
 #define CHAT_SRC_USER_H_
 #include <QString>
 #include <QHash>
+#include <QObject>
+#include "Friend.h"
 #include "ChatString.h"
 
 const int AidMinLength = 6;
 const int PasswordMinlength = 6;
 
-class Account {
+class Account : public QObject {
+  Q_OBJECT
   using AccountType = long long;
 public:
   Account(const QString &name, const  QString &aid,
@@ -49,6 +52,8 @@ public:
   }
   static bool isQualifiedForAid(const QString &aid);
   static bool isQualifiedForPassword(const QString &password);
+signals:
+    void friendAdded(const Friend &aFriend);
 private:
   QString m_name;
   QString m_aid;

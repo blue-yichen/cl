@@ -19,22 +19,33 @@ public:
   static void receiveAllFriends(Account &account);
   void receiveNoReadMessage();
   void moveToMainThread();
-  void connectSignals();
   bool waitMessage(int time);
   void reply();
 signals:
   void messageReceived(SenderType type, const QString &senderAid, const QString &messageContent);
   void keyTalkingFinished();
+  void waitingAgreeAdded(const Friend &aFriend);
+  void needingAgreeAdded(const Friend &aFriend);
+  void waitingAgreeRemoved(const Friend &aFriend);
+  void needingAgreeRemoved(const Friend &aFriend);
+  void friendAddSccessful(const Friend &aFriend);
+  void showMessageBox(const QString &title,const QString &message);
 protected slots:
   void onReadyRead();
   void onMessageSent(const QString &messageContent);
   void onKeyTalkingFinished();
+
+public slots:
+    void refusedFriendApply(const Friend &aFriend);
+    void agreedFriendApply(const Friend &aFriend);
 private:
   void handleMessage(const QString &controlMessage);
   void handleFriend(const QString &controlMessage);
   void handleForwardMessage(const QString &controlMessage);
   void dealWithForwardMessage(ChatString &message);
   void dealWithForwardFile(ChatString &message);
+  void replyFriendApply(ControlMessage::ControlMessageEnum messageEnum,
+                        const QString &aid);
 };
 
 #endif //CHAT_SRC_NETWORKCLIENT_H_

@@ -3,6 +3,7 @@
 #include "LoginWindow.h"
 #include "NetworkClient.h"
 #include "Data.h"
+#include <ctime>
 
 
 LoginWindow::LoginWindow(QWidget *parent)
@@ -57,20 +58,7 @@ LoginWindow::LoginWindow(QWidget *parent)
 	mainLayout->addLayout(hLayout);
 	//连接信号和槽函数
 	connect(m_loginButton, &QPushButton::clicked, this, &LoginWindow::login);
-	connect(this, &LoginWindow::loginSuccessful, [this]
-	() {
-	  QMessageBox::information(this,"登录成功","欢迎回来," + user->getName());
-	  this->hide();
-	  //只有登录成功才能开始读取好友，否则读不到好友
-	  chatWindow->readFriendList();
-	  chatWindow->showFriendList();
-	  socket->reply();
-	  //通过socket读取未读消息
-	  socket->receiveNoReadMessage();
-	  chatWindow->show();
-	  chatWindow->setWindowTitle(QString("聊天") + "(当前登录账号为" + user->getAid() +
-	  ")");
-	});
+	connect(this, &LoginWindow::loginSuccessful,this,&LoginWindow::onLoginSuccessful);
 	connect(m_registerButton,&QPushButton::clicked,this,&LoginWindow::registers);
 	connect(this, &LoginWindow::registerSuccessful, [this](){
 	  QMessageBox::information(this,"消息","注册成功");
@@ -79,9 +67,7 @@ LoginWindow::LoginWindow(QWidget *parent)
 	connect(this,&LoginWindow::registerFail,[this]() {
 	  QMessageBox::information(this,"提醒","注册失败,此aid已被注册");
 	});
-	connect(this,&LoginWindow::loginFail,[this]() {
-	  QMessageBox::information(this,"提醒","登录失败，请检查账号和密码是否正确");
-	});
+	connect(this,&LoginWindow::loginFail,this,&LoginWindow::onLoginFail);
 }
 
 LoginWindow::~LoginWindow()  = default;
@@ -150,6 +136,15 @@ void LoginWindow::login() {
   	if (!checkPasswordAndAid()) {
 		return;
 	}
+    //判断时间距离上一次登录有没有一秒
+    static u64 prevTime;
+    u64 curTime = std::time(nullptr);
+    if (!LoginWindow::isEnoughTimeLimits(prevTime,curTime)) {
+        QMessageBox::information(this,"提醒","登录过于频繁，请等待" +
+        ChatString::NumberToStr(TimeLimits) + "秒后重试");
+        return;
+    }
+    prevTime = curTime;
 	//生成控制信息
 	FormatMessage formatMessage;
 	QString controlMessage =
@@ -165,26 +160,21 @@ void LoginWindow::login() {
 	socket->sendMessage(formatMessage.toQString());
 	//服务器断开连接
 	if (!socket->waitMessage(5000)) {
-	  QMessageBox::information(loginWindow,"提醒","登录请求超时，服务器端出现问题，请稍后重试");
-	  qDebug() << "登录请求超时!\n";
+	  qDebug() << "与服务器断开连接";
 	  return;
 	}
   	qDebug() << "this is a message" + controlMessage;
 	controlMessage = socket->readAll();
-	qDebug() << "this is a replay" + controlMessage;
+	qDebug() << "this is a reply" + controlMessage;
 	ChatString str(controlMessage);
 	if (str.getDataInBucket() ==
 	ControlMessage::Mes[ControlMessage::LoginSuccessful]) {
 	  //同步接收发送方的数据
 	  socket->reply();
 	  socket->waitMessage(MaxWaitTime);
-	  str.skipNBucket(2);
-	  //设置账号信息
-	  user->setUser(str.getDataInBucket(),m_aidEdit->text(),m_passwordEdit->text());
-	  NetworkClient::receiveAllFriends(*user);
-	  emit loginSuccessful();
+	  emit loginSuccessful(str);
 	} else {
-	  emit loginFail();
+	  emit loginFail(str);
 	}
 }
 
@@ -199,6 +189,10 @@ void LoginWindow::registers() {
   QString username = dialog.getInput();
   QString aid = m_aidEdit->text();
   QString password = m_passwordEdit->text();
+  if (username.isEmpty()) {
+      QMessageBox::information(this,"提醒","用户名不能为空哦");
+      return;
+  }
 
   QString controlMessage;
   FormatMessage formatMessage;
@@ -211,8 +205,8 @@ void LoginWindow::registers() {
   socket->sendMessage(formatMessage.toQString());
   //阻塞最多5秒等待消息
   if(!socket->waitMessage(5000)) {
-	QMessageBox::information(loginWindow,"提醒","登录请求超时，服务器端出现问题，请稍后重试");
-	qDebug() << "登录请求超时!\n";
+//	QMessageBox::information(loginWindow,"提醒","登录请求超时，服务器端出现问题，请稍后重试");
+	qDebug() << "与服务器断开连接";
 	return;
   }
   controlMessage = socket->readAll();
@@ -244,4 +238,48 @@ bool LoginWindow::checkPasswordAndAid() {
 	return false;
   }
   return true;
+}
+
+bool LoginWindow::isEnoughTimeLimits(LoginWindow::u64 prevTime, LoginWindow::u64 curTime) {
+    u64 timeDiff = curTime - prevTime;
+    if (timeDiff < TimeLimits) {
+        return false;
+    }
+    return true;
+}
+
+void LoginWindow::onLoginSuccessful(ChatString &message) {
+    message.skipNBucket(2);
+    //设置账号信息
+    user->setUser(message.getDataInBucket(),m_aidEdit->text(),
+                  m_passwordEdit->text());
+    NetworkClient::receiveAllFriends(*user);
+    QMessageBox::information(this,"登录成功","欢迎回来," + user->getName());
+    this->hide();
+    //只有登录成功才能开始读取好友，否则读不到好友
+    chatWindow->readFriendList();
+    chatWindow->showFriendList();
+    socket->reply();
+    //通过socket读取未读消息,等待最多1秒钟，如果有未读消息则会发送过来，否则没有未读消息
+    if (socket->waitMessage(1000)) {
+        socket->receiveNoReadMessage();
+    } else {
+        socket->sendMessage("");
+    }
+    chatWindow->show();
+    chatWindow->saveCurPos();
+    chatWindow->setWindowTitle(QString("聊天") + "(当前登录账号为" + user->getAid() +")");
+    tray->setVisible(true);
+    emit loginFinished();
+}
+
+void LoginWindow::onLoginFail(ChatString &message) {
+    message.skipNBucket(1);
+    QString cmd = message.getDataInBucket();
+    if (cmd == ControlMessage::Mes[ControlMessage::RepeatLogin]) {
+        QMessageBox::information(this,"提醒","账号已经登录");
+    } else if (cmd == ControlMessage::Mes
+    [ControlMessage::AccountOrPasswordError]) {
+        QMessageBox::information(this,"提醒","账号或密码错误");
+    }
 }

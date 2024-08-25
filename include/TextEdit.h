@@ -3,6 +3,8 @@
 #include <QTextEdit>
 #include <QKeyEvent>
 
+const int TextMaxSize = 1024;
+
 class TextEdit : public QTextEdit {
 	Q_OBJECT
 public:
