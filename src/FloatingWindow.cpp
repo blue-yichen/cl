@@ -13,7 +13,7 @@ FloatingWindow::FloatingWindow(const QString &show,QWidget *parent)
     setStyleSheet("border: 2px solid gray; background-color: rgba(255, 255,"
                   " 255, 255); border-radius: 10px;");
     // 添加一个标签以测试显示内容
-    QLabel *label = new QLabel(show, this);
+    auto *label = new QLabel(show, this);
     label->setAlignment(Qt::AlignCenter);
     label->setStyleSheet("color: black;");
     label->setGeometry(0,0,50,50);  // 设置标签位置和大小

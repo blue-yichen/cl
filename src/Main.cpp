@@ -4,12 +4,15 @@
 #include <QAction>
 #include <QFile>
 #include "LoginWindow.h"
+#include "ChatHistory.h"
+#include "Base32.h"
 #define EXTERN_
 #include "Data.h"
 #undef EXTERN_
 
 int main(int argc, char *argv[]) {
   QApplication a(argc, argv);
+  Base32::initBase32();
 	//加载qss
 	QFile qss("../source/qss/MacOS.qss");
 	if (qss.open(QFile::ReadOnly)) {
@@ -34,10 +37,10 @@ int main(int argc, char *argv[]) {
 	receiverThread->start();
   	chatWindow = new ChatWindow();
   	socket = new NetworkClient("127.0.0.1", 12345);
-	histories = new QHash<QString,ChatHistoryClient>();
+	histories = new QHash<QString,ChatHistory*>();
 	loginWindow->show();
 
-    QObject::connect(&showAction,&QAction::triggered,[]() {
+    if(!QObject::connect(&showAction,&QAction::triggered,[]() {
        chatWindow->showAtPrevPos();
        waitMutex.lock();
        if (!waitToAgreeTable.isEmpty()) {
@@ -51,13 +54,20 @@ int main(int argc, char *argv[]) {
        }
        needMutex.unlock();
        qDebug() << "chatWindow shown";
-    });
-    QObject::connect(&quitAction,&QAction::triggered,[]() {
+    })) {
+        qDebug() << "connect show and chatWindowShown fail";
+    }
+    if(!QObject::connect(&quitAction,&QAction::triggered,[]() {
        chatWindow->quit();
        chatWindow->close();
+       //释放内存
+       for (const auto &it : *histories) {
+           delete it;
+       }
        qDebug() << "chatWindow closed";
-    });
-
+    })) {
+        qDebug() << "connect quit and chatWindowClosed fail";
+    }
 
 	return QApplication::exec();
 }

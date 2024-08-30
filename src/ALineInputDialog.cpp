@@ -1,4 +1,5 @@
 #include "ALineInputDialog.h"
+#include "Data.h"
 
 ALineInputDialog::ALineInputDialog(const QString &windowTitle, const QString &label, QDialog *parent)
 	: QDialog(parent) {
@@ -13,6 +14,8 @@ ALineInputDialog::ALineInputDialog(const QString &windowTitle, const QString &la
 	hlayout->addWidget(captionLabel);
 	hlayout->addWidget(m_inputEdit);
 	vlayout->addLayout(hlayout);
+    //安装过滤器
+    m_inputEdit->installEventFilter(loginWindow);
 }
 void ALineInputDialog::keyPressEvent(QKeyEvent *event) {
 	if (event->key() == Qt::Key_Enter ||

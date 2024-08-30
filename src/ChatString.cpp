@@ -1,13 +1,11 @@
-//
-// Created by yichen on 2024/8/14.
-//
-
 #include "ChatString.h"
 #include <algorithm>
 #include <QDebug>
 #include <limits>
-//as[adf]
-//adf
+#include <random>
+
+const std::string characters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
 QString ChatString::getDataInBucket() {
   ChatString::ChatStringType leftBucketIndex = m_data.indexOf(m_bucket[0],m_start);
   if (leftBucketIndex == -1) {
@@ -122,4 +120,16 @@ QString ChatString::getDataAndBucket() {
     }
     m_start = rightBucketIndex + 1;
     return m_data.mid(leftBucketIndex,rightBucketIndex - leftBucketIndex + 1);
+}
+
+QString ChatString::generateRandomString(uint16_t len) {
+    QString result;
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    std::uniform_int_distribution<> distribution(0, (int)characters.size() - 1);
+    for (uint16_t i = 0;i < len;++i) {
+        result += characters[distribution(generator)];
+    }
+
+    return result;
 }

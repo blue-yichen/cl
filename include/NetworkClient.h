@@ -20,21 +20,28 @@ public:
   void receiveNoReadMessage();
   void moveToMainThread();
   bool waitMessage(int time);
+  void sendImmediatelyMessage(const QString &message);
   void reply();
 signals:
+  void connectServerError();
   void messageReceived(SenderType type, const QString &senderAid, const QString &messageContent);
   void keyTalkingFinished();
+  void playMessageTone();
   void waitingAgreeAdded(const Friend &aFriend);
   void needingAgreeAdded(const Friend &aFriend);
   void waitingAgreeRemoved(const Friend &aFriend);
   void needingAgreeRemoved(const Friend &aFriend);
   void friendAddSccessful(const Friend &aFriend);
   void showMessageBox(const QString &title,const QString &message);
+  void appendOutline(const QString &chatAid,
+                       SenderType senderType,
+                       const QString &messageOrFileName,
+                       Type::Type messaegType,
+                       const QString &timestamp);
 protected slots:
   void onReadyRead();
-  void onMessageSent(const QString &messageContent);
+  void onSendMessage(const QString &messageContent);
   void onKeyTalkingFinished();
-
 public slots:
     void refusedFriendApply(const Friend &aFriend);
     void agreedFriendApply(const Friend &aFriend);

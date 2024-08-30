@@ -17,7 +17,11 @@ enum ControlMessageEnum {
   RepeatAdd,AidNoExist,BeAdding,FriendApply,
   FriendFunc,RefuseFriend,BeFriendFail,ToAddFriendBeRefuse,
   TheOtherAddsFriendToo,TheOtherAppliedToBeFriend,RepeatApply,
-  FriendIsSelf,RepeatLogin,AccountOrPasswordError,
+  FriendIsSelf,RepeatLogin,AccountOrPasswordError,NoFriendRelation,
+  LocalChatHistoryExist,TheHashValueOfLocalChatHistory,
+  LocalChatHistoryNoExist,LocalChatHistoryIsRight,
+  LocalChatHistoryIsNotRight,ChatHistoryNoExist,
+  ChatHistoryExist,Origin,Timestamp,
 };
 const  QString Mes[] = {
 	"generate aid","forward",
@@ -38,9 +42,15 @@ const  QString Mes[] = {
     "friend","refuse to be friend",
     "make friend fail","to add friend be refused",
     "the other adds friend,too","the other applied to be friend",
-    "repeat apply","friend is yourself","repeat login","account or password error",
-
-
+    "repeat apply","friend is yourself","repeat login",
+    "account or password error","no friend relation",
+    "local chat history exist",
+    "the hash value of local chat history",
+    "local chat history no exist",
+    "local chat history is right",
+    "local chat history is not right",
+    "chat history no exist","chat history exist","origin",
+	"timestamp",
 };
 }
 

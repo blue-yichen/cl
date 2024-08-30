@@ -22,7 +22,7 @@ class LoginWindow : public MainWindow {
   typedef unsigned long long u64;
 public:
   LoginWindow(QWidget *parent = nullptr);
-  ~LoginWindow() override;
+  ~LoginWindow() override = default;
 protected:
   void keyPressEvent(QKeyEvent *event) override;
 signals:
@@ -31,6 +31,8 @@ signals:
 	void registerSuccessful(); //注册成功信号
 	void registerFail();
     void loginFinished();
+protected:
+    bool eventFilter(QObject *obj,QEvent *event) override;
 private slots:
   	void login(); //响应pushbutton的clicked信号
 	void registers();
@@ -39,7 +41,7 @@ private slots:
 private:
   static bool isEnoughTimeLimits(u64 prevTime,u64 curTime);
   void updateWidgetSize() override;
-  void labelFontStyle(QLabel* &label, int fontSize, QFlag alignment);
+  static void labelFontStyle(QLabel* &label, int fontSize, QFlag alignment);
   bool checkPasswordAndAid();
   QLabel *m_caption;
   QLabel *m_aid;

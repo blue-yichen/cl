@@ -6,7 +6,7 @@
 struct SizePercent {
   double height;
   double width;
-  SizePercent(double _height = 0.0, double _width = 0.0)
+  explicit SizePercent(double _height = 0.0, double _width = 0.0)
 	  : height(_height), width(_width) { }
   void setSize(double _height, double _width) {
 	  height = _height;
@@ -17,8 +17,8 @@ struct SizePercent {
 class MainWindow : public QWidget {
   Q_OBJECT
 public:
-  MainWindow(QWidget *parent = nullptr);
-  ~MainWindow();
+  explicit MainWindow(QWidget *parent = nullptr);
+  ~MainWindow() override;
   void setWidth(int width) {
 	  m_width = width;
 	  resize(m_width, m_height);
@@ -35,8 +35,8 @@ public:
 protected:
   void resizeEvent(QResizeEvent *event) override;
   virtual void updateWidgetSize() = 0;
-  int m_width;
-  int m_height;
+  int m_width{};
+  int m_height{};
 };
 
 #endif //CHAT_SRC_MAINWINDOW_H_

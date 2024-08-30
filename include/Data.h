@@ -1,8 +1,8 @@
 #ifndef EXTERN_
 #define EXTERN_ extern
 #endif
-#include "ChatHistoryClient.h"
 #include "NetworkClient.h"
+#include "ChatHistory.h"
 #include "Account.h"
 #include "ReceiverThread.h"
 #include "Friend.h"
@@ -11,7 +11,8 @@
 #include <QSystemTrayIcon>
 
 
-EXTERN_ QHash<QString,ChatHistoryClient> (*histories);
+//这个资源不需要线程锁，因为这个资源是用于单线程的
+EXTERN_ QHash<QString,ChatHistory*> (*histories);
 EXTERN_ NetworkClient *socket;
 EXTERN_ Account *user;
 EXTERN_ ReceiverThread *receiverThread;

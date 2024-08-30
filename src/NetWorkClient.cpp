@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include <QQueue>
 #include <unistd.h>
+#include "Base32.h"
 #include "ChatString.h"
 #include "NetworkClient.h"
 #include "ControlMessage.h"
@@ -12,8 +13,8 @@ void NetworkClient::connectToServer(const QHostAddress& serverAddress, int port)
   connect(loginWindow,&LoginWindow::loginFinished,[this]() {
 	//登录成功之后，此线程就开启，并且接管我的消息接收
 	connect(this,&QTcpSocket::readyRead,this,&NetworkClient::onReadyRead);
-	connect(chatWindow,&ChatWindow::messageSent,this,
-			&NetworkClient::onMessageSent);
+	connect(chatWindow, &ChatWindow::sendMessage, this,
+            &NetworkClient::onSendMessage);
   });
   connect(this,&QTcpSocket::errorOccurred,[](){
 	qDebug() << "connect error";
@@ -35,6 +36,9 @@ void NetworkClient::connectToServer(const QHostAddress& serverAddress, int port)
   connect(this,&NetworkClient::friendAddSccessful,user,&Account::friendAdded);
   connect(this,&NetworkClient::showMessageBox,
           chatWindow,&ChatWindow::onShowMessage);
+  connect(this,&NetworkClient::connectServerError,[]() {
+      QMessageBox::information(nullptr,"提醒","与服务器的连接异常.......");
+  });
 
 }
 void NetworkClient::onReadyRead() {
@@ -60,7 +64,13 @@ void NetworkClient::moveToMainThread() {
 
 void NetworkClient::receiveAllFriends(Account &account) {
 	//接收账号好友
-	QString toReceiveMessage = socket->readAll();
+    QString toReceiveMessage;
+    if (socket->waitMessage(MaxWaitTime)) {
+        toReceiveMessage = socket->readAll();
+    } else {
+        emit socket->connectServerError();
+        return;
+    }
   	qDebug() << "好友信息:" + toReceiveMessage;
 	ChatString message(toReceiveMessage);
 	QString aid;
@@ -79,12 +89,12 @@ bool NetworkClient::waitMessage(int time) {
   return true;
 }
 void NetworkClient::reply() {
-  this->sendMessage("reply");
+  this->sendImmediatelyMessage("reply");
 }
 NetworkClient::NetworkClient(const QString &serverAddress, int port) {
   connectToServer(QHostAddress(serverAddress),port);
 }
-void NetworkClient::onMessageSent(const QString &messageContent) {
+void NetworkClient::onSendMessage(const QString &messageContent) {
  	this->sendMessage(messageContent);
 	qDebug() << "the message of to send:" + messageContent;
 }
@@ -93,17 +103,17 @@ void NetworkClient::receiveNoReadMessage() {
   	//是否有未读消息
 	//如果有，将一次性发送过来。
     qDebug() << "in receiveNoReadMessage Function";
-	QString noReadMessage = socket->readAll();
+    QString noReadMessage;
+    noReadMessage = socket->readAll();
     qDebug() << "handler:";
     qDebug() << noReadMessage;
 	ChatString message(noReadMessage);
-//	QString senderAid;
 	if (message.getDataInBucket() == ControlMessage::Mes[ControlMessage::NoReadMessage]) {
 		return;
 	}
     message.setData(noReadMessage);
     message.setBucket("{}");
-    qDebug() << message.toQString();
+    qDebug() << "receive no read message:" + message.toQString();
     QQueue<QString> messageQueue;
     //解析noReadMessage,将所有控制信息存入queue
     ChatString messageTmp(message.getDataAndBucket());
@@ -116,34 +126,10 @@ void NetworkClient::receiveNoReadMessage() {
         qDebug() << "a line message:" + messageTmp.toQString();
         messageQueue.enqueue(messageTmp.toQString());
     }
-
+    //最后一个是结束消息，不用处理
     while (messageQueue.size() > 1) {
         handleMessage(messageQueue.dequeue());
     }
-    //解析完成，处理队列消息
-//	message.setData(noReadMessage);
-//	while (true) {
-//	  controlMessage = message.getDataInBucket();
-//	  if (controlMessage ==
-//	  ControlMessage::Mes
-//	  [ControlMessage::Forward]) {
-//		qDebug() << "this is start of a message";
-//		message.skipNBucket(1);
-//	  } else if (controlMessage ==
-//	  ControlMessage::Mes
-//	  [ControlMessage
-//	  ::ForwardMessage]) {
-//          receiveControlMessage = message.getDataInBucket();
-//	  } else if (controlMessage ==
-//	  ControlMessage::Mes
-//	  [ControlMessage::SendAid]) {
-//		senderAid = message.getDataInBucket();
-//		//接收了一条完整的消息
-//		emit messageReceived(Another, senderAid, receiveControlMessage);
-//	  } else {
-//		break;
-//	  }
-//	}
 }
 
 void NetworkClient::handleMessage(const QString &controlMessage) {
@@ -162,6 +148,14 @@ void NetworkClient::dealWithForwardMessage(ChatString &message) {
     QString messageContent = message.getDataInBucket();
     message.skipNBucket(1);
     QString senderAid = message.getDataInBucket();
+    message.skipNBucket(1);
+    QString timestamp = message.getDataInBucket();
+    //接收好友的消息，时间戳从消息中提取
+    emit appendOutline(senderAid,SenderType::Another,
+                       messageContent,Type::Text,timestamp);
+    qDebug() << "before base32 decode:" + messageContent;
+    messageContent = Base32::decode(messageContent);
+    qDebug() << "after base32 decode:" + messageContent;
     emit messageReceived(Another,senderAid,messageContent);
 }
 
@@ -187,18 +181,19 @@ void NetworkClient::handleFriend(const QString &controlMessage) {
     message.skipNBucket(2);
     QString replyCommand = message.getDataInBucket();
     qDebug() << QString("in") + __FUNCTION__;
+    qDebug() << replyCommand;
     //主动方处理的消息
     if (replyCommand ==
         ControlMessage::Mes[ControlMessage::AidNoExist]) {
         emit showMessageBox("提醒","aid为" + message.getDataInBucket() +"的账号不存在");
     } else if (replyCommand ==
                 ControlMessage::Mes[ControlMessage::BeAdding]) {
+       message.skipNBucket(2);
        aid = message.getDataInBucket();
-
-       qDebug() << QString("in") + "be adding";
-       emit showMessageBox("提示","已经向" + aid + "发送申请");
+       qDebug() << QString("in") + "be adding" + " aid " + aid;
        message.skipNBucket(1);
        username = message.getDataInBucket();
+       qDebug() << "username:" + username;
        emit waitingAgreeAdded(Friend(aid,username));
     } else if (replyCommand ==
                ControlMessage::Mes[ControlMessage::RepeatAdd]) {
@@ -315,4 +310,13 @@ void NetworkClient::replyFriendApply(ControlMessage::ControlMessageEnum messageE
              aid);
     FormatMessage formatMessage(forwardMessage);
     sendMessage(formatMessage.toQString());
+}
+
+void NetworkClient::sendImmediatelyMessage(const QString &message) {
+    if (this->state() == QTcpSocket::ConnectedState) {
+        this->write(message.toUtf8());
+        this->flush();
+    } else {
+        emit showMessageBox("提醒", "与服务器断开连接......");
+    }
 }

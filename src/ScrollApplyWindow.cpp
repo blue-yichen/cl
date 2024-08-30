@@ -11,10 +11,10 @@ ScrollApplyWindow::ScrollApplyWindow(bool lineType,
     //大小
     setFixedSize(300,400);
     //窗口布局
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    auto *mainLayout = new QVBoxLayout(this);
     //滚动条区域
-    QScrollArea *scrollArea = new QScrollArea(this);
-    QWidget *areaContainer = new QWidget(scrollArea);
+    auto *scrollArea = new QScrollArea(this);
+    auto *areaContainer = new QWidget(scrollArea);
     m_containerLayout = new QVBoxLayout(areaContainer);
     scrollArea->setWidgetResizable(true);
     mainLayout->addWidget(scrollArea);
@@ -31,13 +31,13 @@ void ScrollApplyWindow::closeEvent(QCloseEvent *event) {
 }
 
 void ScrollApplyWindow::addRaw(const QString &showLabel) {
-    QLabel *label = new QLabel(showLabel);
-    QHBoxLayout *layout = new QHBoxLayout();
+    auto *label = new QLabel(showLabel);
+    auto *layout = new QHBoxLayout();
     layout->addWidget(label);
-    QWidget *container = new QWidget();
+    auto *container = new QWidget();
     if (m_lineType == ButtonLine) {
-        QPushButton *agreeButton = new QPushButton("同意");
-        QPushButton *refuseButton = new QPushButton("拒绝");
+        auto *agreeButton = new QPushButton("同意");
+        auto *refuseButton = new QPushButton("拒绝");
         QString username = showLabel.section('(',0,0);
         QString aid = showLabel.section('(',1,1).section(')',0,0);
         layout->addWidget(agreeButton);
@@ -49,7 +49,7 @@ void ScrollApplyWindow::addRaw(const QString &showLabel) {
             emit refuseButtonClicked(Friend(aid,username));
         });
     } else {
-        QLabel *applyState = new QLabel("已申请,等待同意");
+        auto *applyState = new QLabel("已申请,等待同意");
         layout->addWidget(applyState);
     }
     container->setLayout(layout);

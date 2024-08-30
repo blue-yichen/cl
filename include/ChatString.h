@@ -25,10 +25,15 @@ public:
   QString toQString();
   static bool isNumberStr(const QString &str);
   static QString NumberToStr(int number);
+  static QString generateRandomString(uint16_t len);
   ChatString operator+(const QString &str) {
 	return str + m_data;
   }
   static QString getALineFormatStr(const QString &arg1,const QString &arg2);
+  QString operator=(const QString &data) {
+      setData(data);
+      return m_data;
+  }
 private:
   int getBucketSum() const;
   QString m_data;

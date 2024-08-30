@@ -19,6 +19,7 @@
 #include <QIcon>
 #include <QSoundEffect>
 #include "ScrollApplyWindow.h"
+#include "DataFile.h"
 #include "TextEdit.h"
 #include "MainWindow.h"
 #include "ALineInputDialog.h"
@@ -40,20 +41,30 @@ public:
   ~ChatWindow();
   void showFriendList();
   void readFriendList();
+  void readFriendsRelation();
   void quit();
   void showWaitButton();
   void showNeedButton();
   void showAtPrevPos();
   void saveCurPos();
 signals:
-  void messageSentByButton(SenderType type,const QString &senderAid,const QString &messageContent);
-  void messageSent(const QString &messageContent);
+  void showMessageOnBrowser(
+          SenderType type,
+          const QString &senderAid,
+          const QString &messageContent);
+  void sendMessage(const QString &messageContent);
+  void appendOutline(const QString &chatAid,
+                         SenderType senderType,
+                         const QString &messageOrFileName,
+                         Type::Type messaegType,
+                         const QString &timestamp);
 public slots:
   void onSendButtonClicked();
   void onSelectButtonClicked();
   void onAdditionButtonClicked();
   //接收到消息就显示在textBrowser上
-  void addMessageOnBrowser(SenderType type,const QString &senderAid, const QString &messageContent);
+  void addMessageOnBrowser(SenderType type,const QString &senderAid,
+                           const QString &messageContent);
   void addFileOnBrowser(const QString &fileType);
   void playVideoOnBrowser(const QUrl &url);
   void friendButtonClicked(const QToolButton *button);
@@ -64,17 +75,23 @@ public slots:
   void onNeedingAgreeRemoved(const Friend &aFriend);
   void onFriendAdded(const Friend &aFriend);
   void onShowMessage(const QString &title,const QString &message);
+  void onLoadedHistory();
 protected:
     void closeEvent(QCloseEvent *event) override;
-    bool eventFilter(QObject *obj,QEvent *event) override;
 private:
   	void updateWidgetSize() override;
 	int findWhichButton(const QToolButton *button) const ;
 	int findWhichButton(const QAction *button) const ;
 	void updateBrowser();
 	bool isToolButton(int chatId) const;
-	int m_currentChatFriend;
+    void loadAFriendHistoryToBrowser(void *history,const QString &aid);
+    void handlerMagicMessage(const QString &message);
+    void handlerNormalMessage(const QString &message);
+    bool checkMagicMessage(const QString &message);
+    bool isSameFriend(const QString &label);
+	int m_currentChatFriendId;
     bool m_isQuit;
+    bool m_isStartMessageTone;
     QPoint m_savePos;
 	QVector<QToolButton*> m_friendButtonList;
 	QVector<QAction*> m_friendActionList;
@@ -85,7 +102,6 @@ private:
 	QHash<int,QString> m_friendChatAid;
     //消息提示音
     QSoundEffect *m_messageTone;
-    //QMediaPlayer *m_player;
     //控件
   	QTextBrowser *m_messageBrowser;
 	QPushButton *m_sendButton;

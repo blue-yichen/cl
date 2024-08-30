@@ -1,5 +1,6 @@
 #include <QVBoxLayout>
 #include <QMessageBox>
+#include "SHA256.h"
 #include "LoginWindow.h"
 #include "NetworkClient.h"
 #include "Data.h"
@@ -20,7 +21,7 @@ LoginWindow::LoginWindow(QWidget *parent)
 	m_captionSize.setSize(0.1,1);
 	m_loginButtonSize.setSize(0.15,0.35);
 	//创建主布局
-	QVBoxLayout *mainLayout = new QVBoxLayout();
+	auto *mainLayout = new QVBoxLayout();
 	mainLayout->setAlignment(Qt::AlignCenter);
 	mainLayout->setSpacing(static_cast<int>(m_height * 0.1));
 	setLayout(mainLayout);
@@ -35,42 +36,53 @@ LoginWindow::LoginWindow(QWidget *parent)
 	labelFontStyle(m_password, 14, Qt::AlignCenter);
 	m_passwordEdit = new QLineEdit();
 	m_passwordEdit->setEchoMode(QLineEdit::Password);
-	QHBoxLayout *passwordLayout = new QHBoxLayout();
+	auto *passwordLayout = new QHBoxLayout();
 	passwordLayout->addWidget(m_password);
 	passwordLayout->addWidget(m_passwordEdit);
 	passwordLayout->setSpacing(0);
-	QHBoxLayout *accountLayout = new QHBoxLayout();
+	auto *accountLayout = new QHBoxLayout();
 	accountLayout->addWidget(m_aid);
 	accountLayout->addWidget(m_aidEdit);
 	accountLayout->setSpacing(0);
-	QVBoxLayout *inputLayout = new QVBoxLayout();
+	auto *inputLayout = new QVBoxLayout();
 	inputLayout->addLayout(accountLayout);
 	inputLayout->addLayout(passwordLayout);
 	inputLayout->setSpacing(static_cast<int>(m_height * 0.05));
 	m_loginButton = new QPushButton("登录");
 	m_registerButton = new QPushButton("注册");
-	QHBoxLayout *hLayout = new QHBoxLayout();
+	auto *hLayout = new QHBoxLayout();
 	hLayout->addWidget(m_registerButton);
 	hLayout->addWidget(m_loginButton);
-	updateWidgetSize();
+	//updateWidgetSize();
 	mainLayout->addWidget(m_caption,0,Qt::AlignCenter);
 	mainLayout->addLayout(inputLayout,0);
 	mainLayout->addLayout(hLayout);
 	//连接信号和槽函数
-	connect(m_loginButton, &QPushButton::clicked, this, &LoginWindow::login);
-	connect(this, &LoginWindow::loginSuccessful,this,&LoginWindow::onLoginSuccessful);
-	connect(m_registerButton,&QPushButton::clicked,this,&LoginWindow::registers);
-	connect(this, &LoginWindow::registerSuccessful, [this](){
+	if (!connect(m_loginButton, &QPushButton::clicked, this, &LoginWindow::login)) {
+        qDebug() << "connect  clicked signal of m_loginButton and login function fail";
+    }
+	if (!connect(this, &LoginWindow::loginSuccessful,this,&LoginWindow::onLoginSuccessful)) {
+
+    }
+	if (!connect(m_registerButton,&QPushButton::clicked,this,&LoginWindow::registers)) {
+
+    }
+	if(!connect(this, &LoginWindow::registerSuccessful, [this](){
 	  QMessageBox::information(this,"消息","注册成功");
 	  login();
-	});
-	connect(this,&LoginWindow::registerFail,[this]() {
-	  QMessageBox::information(this,"提醒","注册失败,此aid已被注册");
-	});
-	connect(this,&LoginWindow::loginFail,this,&LoginWindow::onLoginFail);
-}
+	})) {
 
-LoginWindow::~LoginWindow()  = default;
+    }
+
+	if (!connect(this,&LoginWindow::registerFail,[this]() {
+	  QMessageBox::information(this,"提醒","注册失败,此aid已被注册");
+	})) {
+
+    }
+	if(!connect(this,&LoginWindow::loginFail,this,&LoginWindow::onLoginFail)) {
+
+    }
+}
 
 void LoginWindow::updateWidgetSize() {
 	m_caption->setMinimumSize(static_cast<int>
@@ -136,7 +148,7 @@ void LoginWindow::login() {
   	if (!checkPasswordAndAid()) {
 		return;
 	}
-    //判断时间距离上一次登录有没有一秒
+    //登录间隔限制
     static u64 prevTime;
     u64 curTime = std::time(nullptr);
     if (!LoginWindow::isEnoughTimeLimits(prevTime,curTime)) {
@@ -152,12 +164,16 @@ void LoginWindow::login() {
 		+ ControlMessage::Mes[ControlMessage::Null] + "\n";
 	controlMessage += ControlMessage::Mes[ControlMessage::AidData] + ":"
 		+ m_aidEdit->text() + "\n";
-	controlMessage += ControlMessage::Mes[ControlMessage::PasswordData] + ":"
-		+ m_passwordEdit->text() + "\n";
+	controlMessage +=
+            ChatString::getALineFormatStr
+            (ControlMessage::Mes
+            [ControlMessage::PasswordData],
+            SHA256::calculateSha256
+            (m_passwordEdit->text().toUtf8()));
 	qDebug() << controlMessage;
 	formatMessage.addData(controlMessage);
 	qDebug() << formatMessage.toQString();
-	socket->sendMessage(formatMessage.toQString());
+	socket->sendImmediatelyMessage(formatMessage.toQString());
 	//服务器断开连接
 	if (!socket->waitMessage(5000)) {
 	  qDebug() << "与服务器断开连接";
@@ -170,8 +186,8 @@ void LoginWindow::login() {
 	if (str.getDataInBucket() ==
 	ControlMessage::Mes[ControlMessage::LoginSuccessful]) {
 	  //同步接收发送方的数据
+      qDebug() << "login successful";
 	  socket->reply();
-	  socket->waitMessage(MaxWaitTime);
 	  emit loginSuccessful(str);
 	} else {
 	  emit loginFail(str);
@@ -193,7 +209,7 @@ void LoginWindow::registers() {
       QMessageBox::information(this,"提醒","用户名不能为空哦");
       return;
   }
-
+  password = SHA256::calculateSha256(password.toUtf8());
   QString controlMessage;
   FormatMessage formatMessage;
   controlMessage = ControlMessage::Mes[ControlMessage::Register] + ":" + aid + ControlMessage::Mes[ControlMessage::EndFlag];
@@ -202,7 +218,7 @@ void LoginWindow::registers() {
   //qDebug() << controlMessage;
   formatMessage.addData(controlMessage);
   //qDebug() << formatMessage.toQString();
-  socket->sendMessage(formatMessage.toQString());
+  socket->sendImmediatelyMessage(formatMessage.toQString());
   //阻塞最多5秒等待消息
   if(!socket->waitMessage(5000)) {
 //	QMessageBox::information(loginWindow,"提醒","登录请求超时，服务器端出现问题，请稍后重试");
@@ -250,6 +266,12 @@ bool LoginWindow::isEnoughTimeLimits(LoginWindow::u64 prevTime, LoginWindow::u64
 
 void LoginWindow::onLoginSuccessful(ChatString &message) {
     message.skipNBucket(2);
+    //切换账号之前，将之前追加本地历史记录的槽和函数断开连接
+    //如果上一个账号没有aid，则说明这是第一次登录
+    //若不是第一次登录，则断开之前的信号槽连接
+    if (!user->getAid().isEmpty()) {
+        (*histories)[user->getAid()]->disconnect();
+    }
     //设置账号信息
     user->setUser(message.getDataInBucket(),m_aidEdit->text(),
                   m_passwordEdit->text());
@@ -260,16 +282,34 @@ void LoginWindow::onLoginSuccessful(ChatString &message) {
     chatWindow->readFriendList();
     chatWindow->showFriendList();
     socket->reply();
-    //通过socket读取未读消息,等待最多1秒钟，如果有未读消息则会发送过来，否则没有未读消息
-    if (socket->waitMessage(1000)) {
+    //接收服务器发送的好友关系并进行处理,只是用处理未读消息的方式处理好友关系。并没有使用存储未读消息的变量
+    if (socket->waitMessage(MaxWaitTime)) {
         socket->receiveNoReadMessage();
-    } else {
-        socket->sendMessage("");
+    }
+    socket->reply();
+    //加载历史记录
+    QString filePath = PreviousPath + user->getAid() +
+                       + "/" + ChatHistoryDirName;
+    //此账号未在本次程序中登录过，需要创建一个存储此账号历史记录的容器
+    if (!(*histories).contains(user->getAid())) {
+        (*histories)[user->getAid()] = new ChatHistory(filePath);
+    } else { //此账号在本次程序中登录过，只需要恢复信号槽连接即可
+        //只需要恢复信号槽连接
+        (*histories)[user->getAid()]->connectSignals();
+    }
+    //加载聊天记录
+    (*histories)[user->getAid()]->
+            loadAllChatHistories();
+    socket->reply();
+    //等待服务器发送未读消息的处理信息
+    if (socket->waitMessage(MaxWaitTime)) {
+        socket->receiveNoReadMessage();
     }
     chatWindow->show();
     chatWindow->saveCurPos();
     chatWindow->setWindowTitle(QString("聊天") + "(当前登录账号为" + user->getAid() +")");
     tray->setVisible(true);
+    //何时释放,通知thread可以启用了
     emit loginFinished();
 }
 
@@ -282,4 +322,19 @@ void LoginWindow::onLoginFail(ChatString &message) {
     [ControlMessage::AccountOrPasswordError]) {
         QMessageBox::information(this,"提醒","账号或密码错误");
     }
+}
+
+bool LoginWindow::eventFilter(QObject *obj, QEvent *event) {
+    if (event->type() == QEvent::KeyPress) {
+        auto *keyEvent = dynamic_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_BracketLeft ||
+            keyEvent->key() == Qt::Key_BracketRight||
+            keyEvent->key() == Qt::Key_Colon ||
+            keyEvent->key() == Qt::Key_BraceLeft ||
+            keyEvent->key() == Qt::Key_BraceRight ) {
+            QMessageBox::information(this,"提醒","不能输入{}[]:");
+            return true;
+        }
+    }
+    return MainWindow::eventFilter(obj,event);
 }

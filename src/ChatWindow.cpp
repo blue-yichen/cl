@@ -1,13 +1,14 @@
 #include "ChatWindow.h"
 #include "ScrollApplyWindow.h"
+#include "Base32.h"
+#include "ChatHistory.h"
 #include <QSize>
 #include <QMenu>
-#include <QDebug>
 #include "Data.h"
 
 ChatWindow::ChatWindow(QWidget *parent)
-	: MainWindow(parent), m_currentChatFriend(NoChat),
-      m_isQuit(false) {
+	: MainWindow(parent), m_currentChatFriendId(NoChat),
+      m_isQuit(false), m_isStartMessageTone(false) {
 	//初始化m_height和m_width
 	setMaximumSize(800,600);
 	setMinimumSize(640,480);
@@ -28,9 +29,6 @@ ChatWindow::ChatWindow(QWidget *parent)
 	//消息显示区
 	QVBoxLayout *chatLayout = new QVBoxLayout();
 	m_messageBrowser = new QTextBrowser();
-	//m_messageBrowser->setStyleSheet("p { line-height=1px; }");
-	//m_messageBrowser->setFont();
-	//m_messageBrowser->append("yichen:hello,world\n");
 	chatLayout->addWidget(m_messageBrowser);
 	//消息输入区
 	m_sendButton = new QPushButton();
@@ -63,24 +61,15 @@ ChatWindow::ChatWindow(QWidget *parent)
                                                  "./source/sounds/MessageTone"
                                                  ".wav"));
     //播放一次
-    qDebug() << QUrl::fromLocalFile("/home/yichen/Works/cxx/qt/chat/source/sounds/MessageTone.wav");
-
     m_messageTone->setLoopCount(1);
     m_messageTone->setVolume(0.5f);
-//    m_player = new QMediaPlayer(this);
-//    QAudioOutput *audioOutput = new QAudioOutput(this);
-//    m_player->setAudioOutput(audioOutput);
-//    m_player->setSource(QUrl::fromLocalFile("/home/yichen/Works/cxx/qt/chat/source/sounds/MessageTone.wav"));
-//    audioOutput->setVolume(0.5f);
-	//更新控件大小
-	updateWidgetSize();
 	mainLayout->addLayout(contactLayout);
 	mainLayout->addLayout(chatLayout);
 	//连接信号和槽函数
 	connect(m_sendButton,&QPushButton::clicked,this,&ChatWindow::onSendButtonClicked);
 	connect(m_selectButton,&QPushButton::clicked,this,&ChatWindow::onSelectButtonClicked);
 	connect(m_additionButton,&QPushButton::clicked,this,&ChatWindow::onAdditionButtonClicked);
-	connect(this,&ChatWindow::messageSentByButton,this,&ChatWindow::addMessageOnBrowser);
+	connect(this, &ChatWindow::showMessageOnBrowser, this, &ChatWindow::addMessageOnBrowser);
 	connect(m_textEdit,&TextEdit::returnPressed,m_sendButton,&QPushButton::click);
     connect(user,&Account::friendAdded,this,&ChatWindow::onFriendAdded);
     connect(m_waitAgreeButton,&FloatingWindow::clicked,[this]() {
@@ -95,7 +84,7 @@ ChatWindow::ChatWindow(QWidget *parent)
         connect(m_needAgreeList,&ScrollApplyWindow::agreeButtonClicked,socket,&NetworkClient::agreedFriendApply);
         connect(m_needAgreeList,&ScrollApplyWindow::refuseButtonClicked,socket,&NetworkClient::refusedFriendApply);
     });
-    m_textEdit->installEventFilter(this);
+    //m_textEdit->installEventFilter(this);
 }
 
 ChatWindow::~ChatWindow() = default;
@@ -159,37 +148,24 @@ void ChatWindow::showFriendList() {
 }
 
 void ChatWindow::onSendButtonClicked() {
-  	if (m_currentChatFriend == NoChat) {
+  	if (m_currentChatFriendId == NoChat) {
 		QMessageBox::information(this,"提醒","请在右侧好友列表中选择一个好友后再发送消息哦");
 		return;
 	  }
   	//得到之前显示的文本
 	QString message = m_textEdit->toPlainText();
-	qDebug() << message;
+	qDebug() << "before base32 encode: " + message;
+    message = Base32::encode(message.toUtf8());
+    qDebug() << "after base32 encode: " + message;
 	if (message.isEmpty()) {
 	  QMessageBox::information(this,"提醒","消息不能为空哦");
 	  return;
 	}
-	FormatMessage formatToSendMessage;
-	QString toSendMessage =
-		ControlMessage::Mes[ControlMessage::Forward] +
-		ControlMessage::Mes[ControlMessage::Delimiter] +
-		ControlMessage::Mes[ControlMessage::Null] +
-		ControlMessage::Mes[ControlMessage::EndFlag];
-	toSendMessage +=
-		ControlMessage::Mes[ControlMessage::ForwardMessage] +
-		ControlMessage::Mes[ControlMessage::Delimiter] +
-		message +
-		ControlMessage::Mes[ControlMessage::EndFlag];
-	toSendMessage +=
-		ControlMessage::Mes[ControlMessage::ReceiverAid] +
-		ControlMessage::Mes[ControlMessage::Delimiter] +
-		m_friendChatAid[m_currentChatFriend] +
-		ControlMessage::Mes[ControlMessage::EndFlag];
-	formatToSendMessage.addData(toSendMessage);
-	emit messageSent(formatToSendMessage.toQString());
-	//socket->sendMessage(formatToSendMessage.toQString());
-	emit messageSentByButton(MySelf,user->getAid(),message);
+    if (!checkMagicMessage(message)) {
+        handlerNormalMessage(message);
+    } else {
+        handlerMagicMessage(Base32::decode(message));
+    }
 }
 void ChatWindow::onSelectButtonClicked() {
   QFileDialog fileDialog(this);
@@ -197,6 +173,7 @@ void ChatWindow::onSelectButtonClicked() {
   fileDialog.setMaximumSize(640, 480); // 设置最大大小
   QString filePath = fileDialog.getOpenFileName(this,"选择文件","","All Files (*)");
   qDebug() << filePath;
+  //为生成文件uuid
 }
 
 void ChatWindow::addFileOnBrowser(const QString &fileType) {
@@ -236,7 +213,7 @@ void ChatWindow::onAdditionButtonClicked() {
     qDebug() << "add friend:" + aid;
     qDebug() << formatForwardMessage.toQString();
     //主动添加好友
-    emit messageSent(formatForwardMessage.toQString());
+    emit sendMessage(formatForwardMessage.toQString());
 }
 
 //void ChatWindow::showNewFriendOnList(const QString &aid) {
@@ -265,12 +242,12 @@ void ChatWindow::playVideoOnBrowser(const QUrl &url) {
 
 }
 void ChatWindow::friendButtonClicked(const QToolButton *button) {
-  m_currentChatFriend = findWhichButton(button);
-  qDebug() << QString("this is No.") + QChar(m_currentChatFriend + '0') + "button";
+    m_currentChatFriendId = findWhichButton(button);
+  qDebug() << QString("this is No.") + QChar(m_currentChatFriendId + '0') + "button";
 }
 void ChatWindow::friendButtonClicked(const QAction *button) {
-  m_currentChatFriend = findWhichButton(button);
-  qDebug() << QString("this is No.") + QChar(m_currentChatFriend + '0') + "button";
+    m_currentChatFriendId = findWhichButton(button);
+  qDebug() << QString("this is No.") + QChar(m_currentChatFriendId + '0') + "button";
 }
 int ChatWindow::findWhichButton(const QToolButton *button) const {
   for (int i = 0;i < m_friendButtonList.size();++i) {
@@ -289,7 +266,8 @@ int ChatWindow::findWhichButton(const QAction *button) const {
   return NoChat;
 }
 
-void ChatWindow::addMessageOnBrowser(SenderType type,const QString &senderAid, const QString &messageContent) {
+void ChatWindow::addMessageOnBrowser(SenderType type,const QString
+&senderAid,const QString &messageContent) {
 	QString message;
 	QString showName;
 	qDebug() << QString("this is in ") + __FUNCTION__;
@@ -313,32 +291,31 @@ void ChatWindow::addMessageOnBrowser(SenderType type,const QString &senderAid, c
 	  }
 	} else {
       //自己发送的消息
-	  chatId = m_currentChatFriend;
+      chatId = m_currentChatFriendId;
 	}
     //响起消息提示音
-    //如果不是当前聊天窗口显示的好友发送的消息,就触发消息提示音
-    if (chatId != m_currentChatFriend) {
+    //响铃的条件
+    //1.消息来源不是当前聊天窗口
+    //2.不是加载聊天记录
+    if (m_isStartMessageTone && m_currentChatFriendId != chatId) {
         m_messageTone->play();
     }
-    qDebug() << "chatId:" << chatId;
   	message = m_perFriendContents[chatId];
 	message.append(QString("<style>"
 						   "p { line-height: 1; }"
 						   "</style>"
-						   "<p><b>%1: </b> %2</p>").arg(showName,
-														messageContent));
+						   "<p><b>%1: </b> %2</p>").arg(showName,messageContent));
 	m_perFriendContents[chatId] = message;
     //当前聊天窗口的消息
-	if (m_currentChatFriend == chatId) {
+	if (m_currentChatFriendId == chatId) {
 	  m_messageBrowser->setHtml(message);
 	  //自动向下滚动
 	  m_messageBrowser->verticalScrollBar()->
 	  setValue(m_messageBrowser->verticalScrollBar()->maximum());
-	}
-	m_textEdit->setText("");
+    }
 }
 void ChatWindow::updateBrowser() {
-  m_messageBrowser->setHtml(m_perFriendContents[m_currentChatFriend]);
+  m_messageBrowser->setHtml(m_perFriendContents[m_currentChatFriendId]);
   m_messageBrowser->verticalScrollBar()->setValue(m_messageBrowser->verticalScrollBar()->maximum());
 }
 //如果是button返回false，action返回true
@@ -395,9 +372,13 @@ void ChatWindow::readFriendList() {
 void ChatWindow::onFriendAdded(const Friend &aFriend) {
     //在好友列表中扩展
     //判断是action还是ToolButton
+    //如果是同一个好友，则不处理
     QString showName = aFriend.m_username +
             "(" + aFriend.m_aid + ")";
     QString chatTitle = "与" + showName + "的聊天";
+    if (isSameFriend(showName)) {
+        return;
+    }
     if (m_friendButtonList.size() < ToolButtonNumber) {
         //ToolButton
         QToolButton *button = new QToolButton(this);
@@ -510,19 +491,7 @@ void ChatWindow::closeEvent(QCloseEvent *event) {
     m_needAgreeList->hide();
 }
 
-bool ChatWindow::eventFilter(QObject *obj, QEvent *event) {
-    if (obj == m_textEdit && event->type() == QEvent::KeyPress) {
-        QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-        if (keyEvent->key() == Qt::Key_BracketLeft ||
-            keyEvent->key() == Qt::Key_BracketRight||
-            keyEvent->key() == Qt::Key_Colon ||
-            keyEvent->key() == Qt::Key_BraceLeft ||
-            keyEvent->key() == Qt::Key_BraceRight ) {
-            return true;
-        }
-    }
-    return MainWindow::eventFilter(obj,event);
-}
+
 
 void ChatWindow::quit() {
     m_isQuit = true;
@@ -549,4 +518,110 @@ void ChatWindow::saveCurPos() {
     m_savePos = this->pos();
 }
 
+void ChatWindow::onLoadedHistory() {
+    //从history中读取消息并加载到每个好友的browser缓冲区
+    ChatHistory *history = (*histories)[user->getAid()];
+    QList<QString> aidsOfTheFriend =
+            user->getAllAidOfFriend();
+    for (const auto &aid : aidsOfTheFriend) {
+        qDebug() << "load " + aid + " history on browser";
+        //加载一个好友的聊天信息到browser
+        loadAFriendHistoryToBrowser(history,aid);
+    }
+    m_isStartMessageTone = true;
+}
 
+void ChatWindow::loadAFriendHistoryToBrowser(
+        void *historyTemp,const QString &aid) {
+    ChatHistory *history =
+            static_cast<ChatHistory*>(historyTemp);
+    QList<ChatOutline> outlines =
+            history->getAFriendHistory(aid);
+    QString message;
+    SenderType type;
+    qDebug() << outlines.isEmpty();
+    //要将当前聊天框设置为这个好友的chatId，因为如果是自己发送的消息。默认就是在跟当前chatid聊天
+    m_currentChatFriendId = m_friendChatId[aid];
+    qDebug() << "chatId :" + ChatString::NumberToStr(m_currentChatFriendId);
+    for (const auto &outline : outlines) {
+        //处理每一条信息
+        if (outline.m_aid == user->getAid()) {
+            type = SenderType::MySelf;
+        } else {
+            type = SenderType::Another;
+        }
+        //文本
+        qDebug() << "outline type : " + outline.m_type;
+        qDebug() << "outline content: " + outline.m_content;
+        if (outline.m_type == Type::type[Type::Text]) {
+            emit showMessageOnBrowser(type,outline.m_aid,outline.m_content);
+        } else { //文件
+
+        }
+        //完成一条消息的处理
+    }
+}
+
+bool ChatWindow::checkMagicMessage(const QString &message) {
+    return false;
+}
+
+void ChatWindow::handlerMagicMessage(const QString &message) {
+
+}
+
+void ChatWindow::handlerNormalMessage(const QString &message) {
+    FormatMessage formatToSendMessage;
+    QString toSendMessage =
+            ChatString::getALineFormatStr
+            (ControlMessage::Mes[ControlMessage::Forward],
+             ControlMessage::Mes[ControlMessage::Null]);
+    toSendMessage +=
+            ChatString::getALineFormatStr
+            (ControlMessage::Mes[ControlMessage::ForwardMessage],
+             message);
+    toSendMessage +=
+            ChatString::getALineFormatStr
+            (ControlMessage::Mes[ControlMessage::ReceiverAid],
+             m_friendChatAid[m_currentChatFriendId]);
+    QString timestamp = QDateTime::currentDateTime().toString();
+    //发送消息时，带上时间戳
+    toSendMessage += ChatString::getALineFormatStr
+            (ControlMessage::Mes[ControlMessage::Timestamp],
+             timestamp);
+    formatToSendMessage.addData(toSendMessage);
+    qDebug() << "send message:" + formatToSendMessage.toQString();
+    m_textEdit->setText("");
+    emit sendMessage(formatToSendMessage.toQString());
+    emit showMessageOnBrowser(MySelf, user->getAid(), Base32::decode(message));
+    //时间戳由客户端发送时加上
+    emit appendOutline(m_friendChatAid[m_currentChatFriendId],
+                       SenderType::MySelf,message,
+                       Type::Text,
+                       timestamp);
+}
+
+void ChatWindow::readFriendsRelation() {
+    QString friends;
+    if (socket->waitMessage(MaxWaitTime)) {
+        friends = socket->readAll();
+    }
+    if (friends == ControlMessage::Mes[ControlMessage::NoFriendRelation]) {
+        qDebug() << ControlMessage::Mes[ControlMessage::NoFriendRelation];
+    }
+}
+
+bool ChatWindow::isSameFriend(const QString &label) {
+    //遍历两个好友表的label
+    for (const auto &it : m_friendButtonList) {
+        if (it->text() == label) {
+            return true;
+        }
+    }
+    for (const auto &it : m_friendActionList) {
+        if (it->text() == label) {
+            return true;
+        }
+    }
+    return false;
+}
